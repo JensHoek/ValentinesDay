@@ -132,8 +132,38 @@
       }
     }
 
-    // --- "No" dodging logic ---
-    function moveNoButton() {
+    // --- "No" dodging + escalating text ---
+    const noMessages = [
+      "You missed",
+      "Why did you try again?",
+      "DO YOU NOT LOVE ME???",
+      "I'm kidding I know you do",
+      "Just click Yes ;)"
+    ];
+    let noAttempts = 0;
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function rand(a, b) { return a + Math.random() * (b - a); }
+
+    function moveNoButtonAndUpdateText() {
+      // If already gone, do nothing
+      if (noBtn.style.display === "none") return;
+
+      // Update the button text for this attempt
+      if (noAttempts < noMessages.length) {
+        noBtn.textContent = noMessages[noAttempts];
+      }
+
+      noAttempts++;
+
+      // After final message has been shown, next attempt removes the button
+      if (noAttempts > noMessages.length) {
+        noBtn.style.display = "none";
+        // Optional gentle hint: make YES a bit bigger after NO disappears
+        yesBtn.style.transform = "scale(1.12)";
+        return;
+      }
+
       // Move the "No" button somewhere within the card area (feels natural)
       const cardRect = card.getBoundingClientRect();
       const btnRect = noBtn.getBoundingClientRect();
@@ -153,21 +183,18 @@
       noBtn.style.top  = `${newTop}px`;
     }
 
-    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-    function rand(a, b) { return a + Math.random() * (b - a); }
-
-    // Desktop: move when cursor approaches/enters
-    noBtn.addEventListener("mouseenter", moveNoButton);
-    noBtn.addEventListener("mousemove", moveNoButton);
+    // Desktop: move once per "attempt" when cursor enters the button
+    noBtn.addEventListener("mouseenter", moveNoButtonAndUpdateText);
 
     // Mobile: move when they try to tap it
     noBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      moveNoButton();
+      moveNoButtonAndUpdateText();
     });
 
-    // Optional: reset "No" button position on resize so it doesn't end up weirdly placed
+    // Reset "No" button position on resize so it doesn't end up awkwardly placed
     window.addEventListener("resize", () => {
+      if (noBtn.style.display === "none") return;
       noBtn.style.position = "relative";
       noBtn.style.left = "";
       noBtn.style.top = "";
