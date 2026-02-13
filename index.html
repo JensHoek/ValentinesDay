@@ -12,13 +12,11 @@
 
     body {
       margin: 0;
-      min-height: 100svh; /* better on mobile than 100vh */
+      min-height: 100svh;
       display: grid;
       place-items: center;
       background: radial-gradient(circle at top, var(--bg1), var(--bg2));
       overflow: hidden;
-
-      /* iPhone safe areas */
       padding:
         max(16px, env(safe-area-inset-top))
         max(16px, env(safe-area-inset-right))
@@ -39,7 +37,7 @@
 
     h1 {
       margin: 0 0 8px;
-      font-size: clamp(26px, 4vw, 42px); /* slightly smaller for phones */
+      font-size: clamp(26px, 4vw, 42px);
       line-height: 1.15;
     }
 
@@ -67,41 +65,37 @@
       box-shadow: 0 10px 20px rgba(255,59,122,.25);
     }
 
-    /* The key: bounded play area with more vertical space */
     .playArea {
       position: relative;
       width: 100%;
-
-      /* Uses more vertical space on phones, but stays reasonable on desktop */
-      height: clamp(220px, 44svh, 360px);
-
+      height: clamp(240px, 48svh, 420px); /* more vertical room */
       margin-top: 10px;
       border-radius: 18px;
       background: rgba(255,255,255,.35);
       overflow: hidden;
     }
 
-    /* No button can wrap + has max width so it won't get clipped */
+    /* NO button: wraps and never stretches beyond its container */
     #noBtn  {
       position: absolute;
       left: 50%;
-      top: 24px;
+      top: 22px;
       transform: translateX(-50%);
       z-index: 3;
 
       padding: 12px 16px;
-      font-size: 16px;              /* slightly smaller so long lines fit */
+      font-size: 16px;        /* slightly smaller */
       line-height: 1.15;
+
       background: #ffffff;
       color: #222;
       box-shadow: 0 10px 20px rgba(0,0,0,.08);
 
-      max-width: calc(100% - 52px); /* prevents huge pill on mobile */
-      white-space: normal;          /* wrap */
+      white-space: normal;     /* allow wrapping */
       text-align: center;
+      max-width: 85%;          /* fallback, JS will set a precise value */
     }
 
-    /* Keep YES docked at bottom center */
     .yesDock {
       position: absolute;
       left: 50%;
@@ -110,7 +104,6 @@
       z-index: 2;
     }
 
-    /* Celebration overlay */
     .overlay {
       position: fixed; inset: 0;
       display: none;
@@ -133,7 +126,6 @@
     .note { font-size: 18px; opacity: .9; margin: 0 0 18px; }
     .small { font-size: 14px; opacity: .7; }
 
-    /* floating hearts */
     .heart {
       position: fixed;
       font-size: 18px;
@@ -149,7 +141,7 @@
 </head>
 
 <body>
-  <div class="card" id="card">
+  <div class="card">
     <h1>Will you be my Valentine, Selin? 💖</h1>
     <p>I have a very important question…</p>
 
@@ -176,7 +168,7 @@
     const playArea = document.getElementById("playArea");
     const yesDock  = document.getElementById("yesDock");
 
-    // --- "Yes" celebration ---
+    // YES overlay
     yesBtn.addEventListener("click", () => {
       overlay.classList.add("show");
       burstHearts(28);
@@ -189,16 +181,14 @@
         const h = document.createElement("div");
         h.className = "heart";
         h.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-        const x = Math.random() * window.innerWidth;
-        const y = window.innerHeight - 60 + Math.random() * 30;
-        h.style.left = `${x}px`;
-        h.style.top  = `${y}px`;
+        h.style.left = `${Math.random() * window.innerWidth}px`;
+        h.style.top  = `${window.innerHeight - 60 + Math.random() * 30}px`;
         document.body.appendChild(h);
         setTimeout(() => h.remove(), 2400);
       }
     }
 
-    // --- "No" dodging + escalating text ---
+    // NO behavior
     const noMessages = [
       "You missed",
       "Why did you try again?",
@@ -212,88 +202,91 @@
     function rand(a, b) { return a + Math.random() * (b - a); }
 
     function rectsOverlap(a, b) {
-      return !(
-        a.right < b.left ||
-        a.left > b.right ||
-        a.bottom < b.top ||
-        a.top > b.bottom
-      );
+      return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
     }
 
     function moveNoButtonAndUpdateText() {
       if (noBtn.style.display === "none") return;
 
       // Update message
-      if (noAttempts < noMessages.length) {
-        noBtn.textContent = noMessages[noAttempts];
-      }
+      if (noAttempts < noMessages.length) noBtn.textContent = noMessages[noAttempts];
       noAttempts++;
 
-      // After all messages shown, next attempt hides it
+      // After messages, hide on next attempt
       if (noAttempts > noMessages.length) {
         noBtn.style.display = "none";
         yesBtn.style.transform = "scale(1.12)";
         return;
       }
 
-      // Compute bounds inside playArea
       const areaRect = playArea.getBoundingClientRect();
+      const yesRect = yesDock.getBoundingClientRect();
 
-      // Force layout update so offsetWidth matches new text wrapping
+      // Strong padding keeps it away from edges so it won't clip
+      const padding = 26;
+
+      // Dynamically set max-width based on play area width (prevents giant pills)
+      const maxBtnWidth = Math.max(160, Math.floor(areaRect.width - padding * 2));
+      noBtn.style.maxWidth = `${maxBtnWidth}px`;
+
+      // Force layout update
       const btnW = noBtn.offsetWidth;
       const btnH = noBtn.offsetHeight;
 
-      // Bigger padding prevents clipping (this fixes your screenshot issue)
-      const padding = 24;
+      // Compute movement bounds. If the button is too big, fall back to centered X.
+      let minX = padding;
+      let maxX = areaRect.width - btnW - padding;
+      let minY = padding;
+      let maxY = areaRect.height - btnH - padding;
 
-      const minX = padding;
-      const maxX = areaRect.width - btnW - padding;
-      const minY = padding;
-      const maxY = areaRect.height - btnH - padding;
+      // Give extra room above YES (avoid bottom zone)
+      const bottomAvoid = Math.max(90, yesRect.height + 26);
+      maxY = Math.min(maxY, areaRect.height - btnH - padding - bottomAvoid);
 
-      // Place it, but avoid landing on top of the YES dock
-      // We'll try a few random positions and accept the first that doesn't overlap.
-      const yesRect = yesDock.getBoundingClientRect();
+      // If bounds are invalid, clamp them safely so we never produce NaN/negative madness
+      const xHasRoom = maxX >= minX;
+      const yHasRoom = maxY >= minY;
 
-      let x = minX, y = minY;
+      let x = xHasRoom ? rand(minX, maxX) : (areaRect.width - btnW) / 2;
+      let y = yHasRoom ? rand(minY, maxY) : minY;
+
+      // Try multiple positions to avoid overlapping YES
       let tries = 0;
-
       while (tries < 25) {
-        x = clamp(rand(minX, maxX), minX, maxX);
-        y = clamp(rand(minY, maxY), minY, maxY);
-
-        // Convert candidate to viewport rect for overlap test
         const candidateRect = {
           left: areaRect.left + x,
           top: areaRect.top + y,
           right: areaRect.left + x + btnW,
           bottom: areaRect.top + y + btnH
         };
-
         if (!rectsOverlap(candidateRect, yesRect)) break;
+
+        x = xHasRoom ? rand(minX, maxX) : (areaRect.width - btnW) / 2;
+        y = yHasRoom ? rand(minY, maxY) : minY;
         tries++;
       }
 
-      // Apply position (no translate now)
+      // Apply position. Important: remove translate centering for positioned moves.
       noBtn.style.transform = "";
-      noBtn.style.left = `${x}px`;
-      noBtn.style.top  = `${y}px`;
+      noBtn.style.left = `${Math.round(clamp(x, 0, areaRect.width - btnW))}px`;
+      noBtn.style.top  = `${Math.round(clamp(y, 0, areaRect.height - btnH))}px`;
     }
 
-    // Desktop: dodge on hover
+    // Desktop hover
     noBtn.addEventListener("mouseenter", moveNoButtonAndUpdateText);
 
-    // Mobile: dodge on tap
+    // Mobile tap
     noBtn.addEventListener("click", (e) => {
       e.preventDefault();
       moveNoButtonAndUpdateText();
     });
 
-    // On resize/orientation change, re-center nicely
+    // On resize/orientation changes, re-center safely
     function resetNoButtonPosition() {
       if (noBtn.style.display === "none") return;
+      noBtn.style.maxWidth = "85%";
       noBtn.style.left = "50%";
-      noBtn.style.top = "24px";
+      noBtn.style.top = "22px";
       noBtn.style.transform = "translateX(-50%)";
     }
     window.addEventListener("resize", resetNoButtonPosition);
