@@ -4,13 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Will you be my Valentine?</title>
+
   <style>
     :root { --bg1:#ffdde1; --bg2:#ee9ca7; }
+
     * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 
     body {
       margin: 0;
-      min-height: 100vh;
+      min-height: 100svh; /* better on mobile than 100vh */
       display: grid;
       place-items: center;
       background: radial-gradient(circle at top, var(--bg1), var(--bg2));
@@ -26,7 +28,7 @@
 
     .card {
       width: min(680px, 92vw);
-      padding: 28px 22px;
+      padding: 26px 20px 22px;
       border-radius: 22px;
       background: rgba(255,255,255,.75);
       backdrop-filter: blur(8px);
@@ -35,63 +37,77 @@
       position: relative;
     }
 
-    h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 44px); }
-    p { margin: 0 0 18px; opacity: .85; }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(26px, 4vw, 42px); /* slightly smaller for phones */
+      line-height: 1.15;
+    }
+
+    p {
+      margin: 0 0 16px;
+      opacity: .85;
+      font-size: 16px;
+    }
 
     button {
       border: 0;
-      padding: 14px 22px;
       border-radius: 999px;
-      font-size: 18px;
       cursor: pointer;
-      transition: transform .12s ease;
       user-select: none;
       touch-action: manipulation;
-      white-space: nowrap;
+      transition: transform .12s ease;
     }
     button:active { transform: scale(0.97); }
 
     #yesBtn {
+      padding: 14px 26px;
+      font-size: 18px;
       background: #ff3b7a;
       color: white;
       box-shadow: 0 10px 20px rgba(255,59,122,.25);
     }
 
-    #noBtn  {
-      background: #ffffff;
-      color: #222;
-      box-shadow: 0 10px 20px rgba(0,0,0,.08);
-    }
-
-    /* This is the key: a bounded area where "No" is allowed to move */
+    /* The key: bounded play area with more vertical space */
     .playArea {
       position: relative;
       width: 100%;
-      height: 170px;                 /* enough room on mobile */
+
+      /* Uses more vertical space on phones, but stays reasonable on desktop */
+      height: clamp(220px, 44svh, 360px);
+
       margin-top: 10px;
       border-radius: 18px;
       background: rgba(255,255,255,.35);
-      overflow: hidden;              /* never show button outside bounds */
-      display: grid;
-      place-items: center;
+      overflow: hidden;
     }
 
-    /* Yes button stays anchored at the bottom-center of the play area */
+    /* No button can wrap + has max width so it won't get clipped */
+    #noBtn  {
+      position: absolute;
+      left: 50%;
+      top: 24px;
+      transform: translateX(-50%);
+      z-index: 3;
+
+      padding: 12px 16px;
+      font-size: 16px;              /* slightly smaller so long lines fit */
+      line-height: 1.15;
+      background: #ffffff;
+      color: #222;
+      box-shadow: 0 10px 20px rgba(0,0,0,.08);
+
+      max-width: calc(100% - 52px); /* prevents huge pill on mobile */
+      white-space: normal;          /* wrap */
+      text-align: center;
+    }
+
+    /* Keep YES docked at bottom center */
     .yesDock {
       position: absolute;
       left: 50%;
-      bottom: 14px;
+      bottom: 16px;
       transform: translateX(-50%);
       z-index: 2;
-    }
-
-    /* No button moves around inside playArea */
-    #noBtn {
-      position: absolute;
-      left: 50%;
-      top: 40px;
-      transform: translateX(-50%);
-      z-index: 3;
     }
 
     /* Celebration overlay */
@@ -131,15 +147,15 @@
     }
   </style>
 </head>
+
 <body>
   <div class="card" id="card">
     <h1>Will you be my Valentine, Selin? 💖</h1>
     <p>I have a very important question…</p>
 
-    <div class="playArea" id="playArea" aria-label="Valentine buttons">
+    <div class="playArea" id="playArea">
       <button id="noBtn">No 🙈</button>
-
-      <div class="yesDock">
+      <div class="yesDock" id="yesDock">
         <button id="yesBtn">Yes ❤️</button>
       </div>
     </div>
@@ -154,15 +170,16 @@
   </div>
 
   <script>
-    const noBtn = document.getElementById("noBtn");
-    const yesBtn = document.getElementById("yesBtn");
+    const noBtn   = document.getElementById("noBtn");
+    const yesBtn  = document.getElementById("yesBtn");
     const overlay = document.getElementById("overlay");
     const playArea = document.getElementById("playArea");
+    const yesDock  = document.getElementById("yesDock");
 
     // --- "Yes" celebration ---
     yesBtn.addEventListener("click", () => {
       overlay.classList.add("show");
-      burstHearts(26);
+      burstHearts(28);
     });
     overlay.addEventListener("click", () => overlay.classList.remove("show"));
 
@@ -194,46 +211,73 @@
     function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
     function rand(a, b) { return a + Math.random() * (b - a); }
 
+    function rectsOverlap(a, b) {
+      return !(
+        a.right < b.left ||
+        a.left > b.right ||
+        a.bottom < b.top ||
+        a.top > b.bottom
+      );
+    }
+
     function moveNoButtonAndUpdateText() {
       if (noBtn.style.display === "none") return;
 
-      // Update text first
+      // Update message
       if (noAttempts < noMessages.length) {
         noBtn.textContent = noMessages[noAttempts];
       }
       noAttempts++;
 
-      // After showing all messages, the next "attempt" hides it
+      // After all messages shown, next attempt hides it
       if (noAttempts > noMessages.length) {
         noBtn.style.display = "none";
         yesBtn.style.transform = "scale(1.12)";
         return;
       }
 
-      // Constrain movement inside the play area (prevents disappearing off-screen)
+      // Compute bounds inside playArea
       const areaRect = playArea.getBoundingClientRect();
 
-      // We need button size; use offsetWidth/Height (works reliably)
+      // Force layout update so offsetWidth matches new text wrapping
       const btnW = noBtn.offsetWidth;
       const btnH = noBtn.offsetHeight;
 
-      const padding = 12;
-
-      // Reserve a "safe zone" around the Yes button at the bottom-center
-      // so "No" doesn't land directly on top of it.
-      const yesSafeHeight = 70;
+      // Bigger padding prevents clipping (this fixes your screenshot issue)
+      const padding = 24;
 
       const minX = padding;
       const maxX = areaRect.width - btnW - padding;
       const minY = padding;
-      const maxY = areaRect.height - btnH - padding - yesSafeHeight;
+      const maxY = areaRect.height - btnH - padding;
 
-      const x = clamp(rand(minX, maxX), minX, maxX);
-      const y = clamp(rand(minY, maxY), minY, maxY);
+      // Place it, but avoid landing on top of the YES dock
+      // We'll try a few random positions and accept the first that doesn't overlap.
+      const yesRect = yesDock.getBoundingClientRect();
 
+      let x = minX, y = minY;
+      let tries = 0;
+
+      while (tries < 25) {
+        x = clamp(rand(minX, maxX), minX, maxX);
+        y = clamp(rand(minY, maxY), minY, maxY);
+
+        // Convert candidate to viewport rect for overlap test
+        const candidateRect = {
+          left: areaRect.left + x,
+          top: areaRect.top + y,
+          right: areaRect.left + x + btnW,
+          bottom: areaRect.top + y + btnH
+        };
+
+        if (!rectsOverlap(candidateRect, yesRect)) break;
+        tries++;
+      }
+
+      // Apply position (no translate now)
+      noBtn.style.transform = "";
       noBtn.style.left = `${x}px`;
       noBtn.style.top  = `${y}px`;
-      noBtn.style.transform = ""; // we set explicit left/top, so remove centering transform
     }
 
     // Desktop: dodge on hover
@@ -245,11 +289,11 @@
       moveNoButtonAndUpdateText();
     });
 
-    // On resize/orientation change, re-center No button nicely if it's still visible
+    // On resize/orientation change, re-center nicely
     function resetNoButtonPosition() {
       if (noBtn.style.display === "none") return;
       noBtn.style.left = "50%";
-      noBtn.style.top = "40px";
+      noBtn.style.top = "24px";
       noBtn.style.transform = "translateX(-50%)";
     }
     window.addEventListener("resize", resetNoButtonPosition);
