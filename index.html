@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Will you be my Valentine?</title>
   <style>
     :root { --bg1:#ffdde1; --bg2:#ee9ca7; }
     * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
     body {
       margin: 0;
       min-height: 100vh;
@@ -14,7 +15,15 @@
       place-items: center;
       background: radial-gradient(circle at top, var(--bg1), var(--bg2));
       overflow: hidden;
+
+      /* iPhone safe areas */
+      padding:
+        max(16px, env(safe-area-inset-top))
+        max(16px, env(safe-area-inset-right))
+        max(16px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
     }
+
     .card {
       width: min(680px, 92vw);
       padding: 28px 22px;
@@ -25,15 +34,10 @@
       text-align: center;
       position: relative;
     }
+
     h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 44px); }
     p { margin: 0 0 18px; opacity: .85; }
-    .btns {
-      display: flex;
-      justify-content: center;
-      gap: 14px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
+
     button {
       border: 0;
       padding: 14px 22px;
@@ -43,10 +47,52 @@
       transition: transform .12s ease;
       user-select: none;
       touch-action: manipulation;
+      white-space: nowrap;
     }
     button:active { transform: scale(0.97); }
-    #yesBtn { background: #ff3b7a; color: white; box-shadow: 0 10px 20px rgba(255,59,122,.25); }
-    #noBtn  { background: #ffffff; color: #222; box-shadow: 0 10px 20px rgba(0,0,0,.08); position: relative; }
+
+    #yesBtn {
+      background: #ff3b7a;
+      color: white;
+      box-shadow: 0 10px 20px rgba(255,59,122,.25);
+    }
+
+    #noBtn  {
+      background: #ffffff;
+      color: #222;
+      box-shadow: 0 10px 20px rgba(0,0,0,.08);
+    }
+
+    /* This is the key: a bounded area where "No" is allowed to move */
+    .playArea {
+      position: relative;
+      width: 100%;
+      height: 170px;                 /* enough room on mobile */
+      margin-top: 10px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.35);
+      overflow: hidden;              /* never show button outside bounds */
+      display: grid;
+      place-items: center;
+    }
+
+    /* Yes button stays anchored at the bottom-center of the play area */
+    .yesDock {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+
+    /* No button moves around inside playArea */
+    #noBtn {
+      position: absolute;
+      left: 50%;
+      top: 40px;
+      transform: translateX(-50%);
+      z-index: 3;
+    }
 
     /* Celebration overlay */
     .overlay {
@@ -90,9 +136,12 @@
     <h1>Will you be my Valentine, Selin? 💖</h1>
     <p>I have a very important question…</p>
 
-    <div class="btns">
-      <button id="yesBtn">Yes ❤️</button>
+    <div class="playArea" id="playArea" aria-label="Valentine buttons">
       <button id="noBtn">No 🙈</button>
+
+      <div class="yesDock">
+        <button id="yesBtn">Yes ❤️</button>
+      </div>
     </div>
   </div>
 
@@ -107,13 +156,13 @@
   <script>
     const noBtn = document.getElementById("noBtn");
     const yesBtn = document.getElementById("yesBtn");
-    const card  = document.getElementById("card");
     const overlay = document.getElementById("overlay");
+    const playArea = document.getElementById("playArea");
 
     // --- "Yes" celebration ---
     yesBtn.addEventListener("click", () => {
       overlay.classList.add("show");
-      burstHearts(24);
+      burstHearts(26);
     });
     overlay.addEventListener("click", () => overlay.classList.remove("show"));
 
@@ -146,59 +195,65 @@
     function rand(a, b) { return a + Math.random() * (b - a); }
 
     function moveNoButtonAndUpdateText() {
-      // If already gone, do nothing
       if (noBtn.style.display === "none") return;
 
-      // Update the button text for this attempt
+      // Update text first
       if (noAttempts < noMessages.length) {
         noBtn.textContent = noMessages[noAttempts];
       }
-
       noAttempts++;
 
-      // After final message has been shown, next attempt removes the button
+      // After showing all messages, the next "attempt" hides it
       if (noAttempts > noMessages.length) {
         noBtn.style.display = "none";
-        // Optional gentle hint: make YES a bit bigger after NO disappears
         yesBtn.style.transform = "scale(1.12)";
         return;
       }
 
-      // Move the "No" button somewhere within the card area (feels natural)
-      const cardRect = card.getBoundingClientRect();
-      const btnRect = noBtn.getBoundingClientRect();
+      // Constrain movement inside the play area (prevents disappearing off-screen)
+      const areaRect = playArea.getBoundingClientRect();
+
+      // We need button size; use offsetWidth/Height (works reliably)
+      const btnW = noBtn.offsetWidth;
+      const btnH = noBtn.offsetHeight;
 
       const padding = 12;
-      const minX = cardRect.left + padding;
-      const maxX = cardRect.right - btnRect.width - padding;
-      const minY = cardRect.top + padding;
-      const maxY = cardRect.bottom - btnRect.height - padding;
 
-      const newLeft = clamp(rand(minX, maxX), minX, maxX);
-      const newTop  = clamp(rand(minY, maxY), minY, maxY);
+      // Reserve a "safe zone" around the Yes button at the bottom-center
+      // so "No" doesn't land directly on top of it.
+      const yesSafeHeight = 70;
 
-      // Use fixed positioning to place it precisely
-      noBtn.style.position = "fixed";
-      noBtn.style.left = `${newLeft}px`;
-      noBtn.style.top  = `${newTop}px`;
+      const minX = padding;
+      const maxX = areaRect.width - btnW - padding;
+      const minY = padding;
+      const maxY = areaRect.height - btnH - padding - yesSafeHeight;
+
+      const x = clamp(rand(minX, maxX), minX, maxX);
+      const y = clamp(rand(minY, maxY), minY, maxY);
+
+      noBtn.style.left = `${x}px`;
+      noBtn.style.top  = `${y}px`;
+      noBtn.style.transform = ""; // we set explicit left/top, so remove centering transform
     }
 
-    // Desktop: move once per "attempt" when cursor enters the button
+    // Desktop: dodge on hover
     noBtn.addEventListener("mouseenter", moveNoButtonAndUpdateText);
 
-    // Mobile: move when they try to tap it
+    // Mobile: dodge on tap
     noBtn.addEventListener("click", (e) => {
       e.preventDefault();
       moveNoButtonAndUpdateText();
     });
 
-    // Reset "No" button position on resize so it doesn't end up awkwardly placed
-    window.addEventListener("resize", () => {
+    // On resize/orientation change, re-center No button nicely if it's still visible
+    function resetNoButtonPosition() {
       if (noBtn.style.display === "none") return;
-      noBtn.style.position = "relative";
-      noBtn.style.left = "";
-      noBtn.style.top = "";
-    });
+      noBtn.style.left = "50%";
+      noBtn.style.top = "40px";
+      noBtn.style.transform = "translateX(-50%)";
+    }
+    window.addEventListener("resize", resetNoButtonPosition);
+    window.addEventListener("orientationchange", resetNoButtonPosition);
   </script>
 </body>
 </html>
