@@ -68,7 +68,7 @@
     .playArea {
       position: relative;
       width: 100%;
-      height: clamp(240px, 48svh, 420px); /* more vertical room */
+      height: clamp(240px, 48svh, 420px);
       margin-top: 10px;
       border-radius: 18px;
       background: rgba(255,255,255,.35);
@@ -84,16 +84,16 @@
       z-index: 3;
 
       padding: 12px 16px;
-      font-size: 16px;        /* slightly smaller */
+      font-size: 16px;
       line-height: 1.15;
 
       background: #ffffff;
       color: #222;
       box-shadow: 0 10px 20px rgba(0,0,0,.08);
 
-      white-space: normal;     /* allow wrapping */
+      white-space: normal;
       text-align: center;
-      max-width: 85%;          /* fallback, JS will set a precise value */
+      max-width: 85%;
     }
 
     .yesDock {
@@ -222,33 +222,36 @@
       const areaRect = playArea.getBoundingClientRect();
       const yesRect = yesDock.getBoundingClientRect();
 
-      // Strong padding keeps it away from edges so it won't clip
-      const padding = 26;
+      // Keep the NO button fully inside the white play area horizontally (and vertically).
+      // IMPORTANT: max-width must never exceed the play area width, otherwise it can overflow even at left=0.
+      const areaW = playArea.clientWidth;
+      const areaH = playArea.clientHeight;
 
-      // Dynamically set max-width based on play area width (prevents giant pills)
-      const maxBtnWidth = Math.max(160, Math.floor(areaRect.width - padding * 2));
-      noBtn.style.maxWidth = `${maxBtnWidth}px`;
+      noBtn.style.width = "auto";
+      noBtn.style.maxWidth = `${Math.max(0, Math.floor(areaW))}px`;
 
-      // Force layout update
+      // Force layout update after changing maxWidth
       const btnW = noBtn.offsetWidth;
       const btnH = noBtn.offsetHeight;
 
-      // Compute movement bounds. If the button is too big, fall back to centered X.
-      let minX = padding;
-      let maxX = areaRect.width - btnW - padding;
-      let minY = padding;
-      let maxY = areaRect.height - btnH - padding;
+      // Compute movement bounds: 0..(container - button) so the button never crosses the play area border.
+      const maxLeft = Math.max(0, areaW - btnW);
+      const maxTop  = Math.max(0, areaH - btnH);
+
+      let minX = 0;
+      let maxX = maxLeft;
+      let minY = 0;
+      let maxY = maxTop;
 
       // Give extra room above YES (avoid bottom zone)
       const bottomAvoid = Math.max(90, yesRect.height + 26);
-      maxY = Math.min(maxY, areaRect.height - btnH - padding - bottomAvoid);
+      maxY = Math.min(maxY, Math.max(0, areaH - btnH - bottomAvoid));
 
-      // If bounds are invalid, clamp them safely so we never produce NaN/negative madness
       const xHasRoom = maxX >= minX;
       const yHasRoom = maxY >= minY;
 
-      let x = xHasRoom ? rand(minX, maxX) : (areaRect.width - btnW) / 2;
-      let y = yHasRoom ? rand(minY, maxY) : minY;
+      let x = xHasRoom ? rand(minX, maxX) : 0;
+      let y = yHasRoom ? rand(minY, maxY) : 0;
 
       // Try multiple positions to avoid overlapping YES
       let tries = 0;
@@ -261,15 +264,15 @@
         };
         if (!rectsOverlap(candidateRect, yesRect)) break;
 
-        x = xHasRoom ? rand(minX, maxX) : (areaRect.width - btnW) / 2;
-        y = yHasRoom ? rand(minY, maxY) : minY;
+        x = xHasRoom ? rand(minX, maxX) : 0;
+        y = yHasRoom ? rand(minY, maxY) : 0;
         tries++;
       }
 
       // Apply position. Important: remove translate centering for positioned moves.
       noBtn.style.transform = "";
-      noBtn.style.left = `${Math.round(clamp(x, 0, areaRect.width - btnW))}px`;
-      noBtn.style.top  = `${Math.round(clamp(y, 0, areaRect.height - btnH))}px`;
+      noBtn.style.left = `${Math.round(clamp(x, 0, maxLeft))}px`;
+      noBtn.style.top  = `${Math.round(clamp(y, 0, Math.max(0, areaH - btnH)))}px`;
     }
 
     // Desktop hover
@@ -285,6 +288,7 @@
     function resetNoButtonPosition() {
       if (noBtn.style.display === "none") return;
       noBtn.style.maxWidth = "85%";
+      noBtn.style.width = "auto";
       noBtn.style.left = "50%";
       noBtn.style.top = "22px";
       noBtn.style.transform = "translateX(-50%)";
